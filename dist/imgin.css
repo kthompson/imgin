@@ -1,0 +1,12 @@
+.imgin-box {
+	position: absolute;
+	float: left;
+	overflow: auto;
+	top: 10px;
+	background-color: white;
+	z-index:100;
+}
+
+.imgin-box > img {
+	margin: 3px;
+}

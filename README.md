@@ -1,4 +1,6 @@
 imgin
 =====
 
-Replacement for HoverZoom
+Open source Chrome extension to preview links/images. 
+
+Similar to HoverZoom but without user tracking.
