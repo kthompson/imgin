@@ -1,6 +1,5 @@
 (function() {
-  var imgur, log, startTimer,
-    __slice = [].slice;
+  var album, imgur, log, mouse, startTimer, xhr;
 
   startTimer = function(time, cb) {
     return setTimeout(cb, time);
@@ -10,72 +9,146 @@
     return console.log;
   };
 
-  imgur = function(id, callback) {
-    var xhr;
-    xhr = new XMLHttpRequest();
-    xhr.open("GET", "https://api.imgur.com/3/image/" + id, true);
-    xhr.setRequestHeader("Authorization", "Client-ID bc555e2b76aefbd");
-    xhr.onload = function(res) {
-      var image;
-      image = JSON.parse(this.responseText);
-      return callback(image.data.link);
+  xhr = function(url, callback) {
+    var req;
+    req = new XMLHttpRequest();
+    req.open("GET", url, true);
+    req.setRequestHeader("Authorization", "Client-ID bc555e2b76aefbd");
+    req.onload = function(res) {
+      var response;
+      response = JSON.parse(req.responseText);
+      return callback(response);
     };
-    return xhr.send();
+    return req.send();
+  };
+
+  imgur = function(id, callback) {
+    return xhr("https://api.imgur.com/3/image/" + id, function(image) {
+      return callback(image.data.link);
+    });
+  };
+
+  album = function(id, callback) {
+    return xhr("https://api.imgur.com/3/album/" + id + "/images", function(image) {
+      var img;
+      console.log(image);
+      return callback((function() {
+        var _i, _len, _ref, _results;
+        _ref = image.data;
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          img = _ref[_i];
+          _results.push(img.link);
+        }
+        return _results;
+      })());
+    });
+  };
+
+  mouse = {
+    pos: {
+      x: 0,
+      y: 0
+    },
+    view: {
+      x: 0,
+      y: 0
+    }
   };
 
   (function() {
-    var body, box, display, get, img, timer;
+    var body, box, display, get, img, inspecting, setBoxPos, timer;
     body = document.getElementsByTagName('body')[0];
     box = document.createElement('div');
     img = document.createElement('img');
+    inspecting = null;
     timer = null;
     box.className = 'imgin-box';
     box.style.display = 'none';
     box.appendChild(img);
     body.appendChild(box);
-    display = function(src, x, y) {
-      if (src) {
-        img.src = src;
+    setBoxPos = function(x, y) {
+      box.style.left = x + 'px';
+      return box.style.top = y + 'px';
+    };
+    display = function(src) {
+      var docH, docW;
+      if (!src) {
+        box.style.display = 'none';
+        console.log("hiding");
+        inspecting = null;
+        return;
+      }
+      docW = document.documentElement.clientWidth * 0.95;
+      docH = document.documentElement.clientHeight * 0.95;
+      img.onload = function() {
+        var h, s, sh, sw, w;
+        w = img.naturalWidth;
+        h = img.naturalHeight;
+        if (w > docW || h > docH) {
+          console.log("image is too big (" + w + ", " + h + ") for view (" + docW + ", " + docH + ")");
+          sw = w / docW;
+          sh = h / docH;
+          console.log("selecting scale (" + sw + ", " + sh + ")");
+          s = Math.max(sw, sh);
+          img.width = Math.round(w / s);
+          img.height = Math.round(h / s);
+          console.log("new size (" + img.width + ", " + img.height + ")");
+        }
         box.style.display = 'block';
-        box.style.left = x + 'px';
-        return box.style.top = y + 'px';
+        setBoxPos(mouse.pos.x + 5, mouse.pos.y);
+        return console.log("displaying ", src);
+      };
+      if (typeof src === 'string') {
+        return img.src = src;
       } else {
-        return box.style.display = 'none';
+        return img.src = src[0];
       }
     };
-    get = function() {
-      var cb, m, n, nodes, _i, _j, _len, _ref;
-      nodes = 2 <= arguments.length ? __slice.call(arguments, 0, _i = arguments.length - 1) : (_i = 0, []), cb = arguments[_i++];
-      for (_j = 0, _len = nodes.length; _j < _len; _j++) {
-        n = nodes[_j];
-        if (n.nodeName !== 'A') {
-          continue;
-        }
-        if (!n.href) {
-          continue;
-        }
-        if ((_ref = n.href) != null ? _ref.match(/\.(jpg|jpeg|gif|png|bmp)$/gi) : void 0) {
-          cb(n.href);
+    get = function(node, cb) {
+      var m;
+      while (node) {
+        if (node === box) {
           return;
         }
-        if (m = n.href.match(/http:\/\/imgur\.com\/(.*)/)) {
+        if (!(node.nodeName === 'A' && node.href)) {
+          node = node.parentElement;
+          continue;
+        }
+        if (node.href === inspecting) {
+          return;
+        }
+        inspecting = node.href;
+        console.log("checking " + node.href);
+        if (node.href.match(/\.(jpg|jpeg|gif|png|bmp)$/gi)) {
+          cb(node.href);
+          return;
+        } else if (m = node.href.match(/http:\/\/imgur\.com\/a\/(.*)/)) {
+          console.log("imgur album " + m[1]);
+          album(m[1], cb);
+          return;
+        } else if (m = node.href.match(/http:\/\/imgur\.com\/(.*)/)) {
           imgur(m[1], cb);
           return;
+        } else {
+          node = node.parentElement;
         }
       }
       return cb(null);
     };
     return document.addEventListener('mousemove', function(event) {
-      var t, x, y;
+      var t;
       if (timer) {
         clearTimeout(timer);
       }
       t = event.target;
-      x = event.pageX + 5;
-      y = event.pageY;
+      mouse.pos.x = event.pageX;
+      mouse.pos.y = event.pageY;
+      mouse.view.x = event.screenX;
+      mouse.view.y = event.screenY;
       return timer = startTimer(100, function() {
-        return get(t, t.parentElement, function(href) {
-          return display(href, x, y);
+        return get(t, function(href) {
+          return display(href);
         });
       });
     });

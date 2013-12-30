@@ -12,7 +12,6 @@ module.exports = (grunt) ->
         tasks: ["build"]
         options:
           spawn: false
-          livereload: true
 
     uglify:
       options:
